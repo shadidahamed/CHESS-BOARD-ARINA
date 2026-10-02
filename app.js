@@ -249,9 +249,8 @@ function bindSettings() {
 // ─────────────────────────────────────────────
 // AI game
 // ─────────────────────────────────────────────
-function bindAIPage() {
-  document.getElementById('ai-start')?.addEventListener('click', startAIGame);
-}
+
+let board3d = null;
 
 async function startAIGame() {
   const colorSel = document.getElementById('ai-color')?.value || 'w';
@@ -268,7 +267,152 @@ async function startAIGame() {
   ui.showQuote('start');
   selectedSq = null;
   legalMoves = [];
+  window.__aiCtx = { humanColor, diff, style };
+  window.__lastMove = null;
 
+  // destroy previous 3d
+  if (board3d) {
+  board3d.destroy();
+  board3d = null;
+}
+
+  const container = document.getElementById('board-3d');
+  const board2d = document.getElementById('board-2d');
+  if (container) {
+    container.classList.remove('hidden');
+    if (board2d) board2d.classList.add('hidden');
+
+    board3d = new Board3D(container, {
+      flipped: humanColor === 'b',
+      onSquareClick: (r, c) => onBoardClick3D(r, c, humanColor)
+    });
+  }
+
+  refreshBoard3D(humanColor);
+
+  document.getElementById('btn-undo')?.addEventListener('click', () => {
+    if (!chess) return;
+    chess.undo();
+    if (chess.turn !== humanColor) chess.undo();
+    window.__lastMove = null;
+    selectedSq = null;
+    legalMoves = [];
+    refreshBoard3D(humanColor);
+  });
+
+  document.getElementById('btn-resign')?.addEventListener('click', () => {
+    document.getElementById('game-status').textContent = 'You resigned';
+    ui.showQuote('mate');
+    chess = null;
+  });
+
+  document.getElementById('btn-flip')?.addEventListener('click', () => {
+    if (board3d) {
+      board3d.setFlipped(!board3d.flipped);
+      refreshBoard3D(humanColor);
+    }
+  });
+
+  document.getElementById('btn-view2d')?.addEventListener('click', () => {
+    view3d = !view3d;
+    if (view3d) {
+      container?.classList.remove('hidden');
+      board2d?.classList.add('hidden');
+      refreshBoard3D(humanColor);
+    } else {
+      container?.classList.add('hidden');
+      board2d?.classList.remove('hidden');
+      renderBoard2D(humanColor);
+    }
+  });
+
+  aiEngine.onMove = (uci) => {
+    if (!chess) return;
+    const res = chess.moveUci(uci);
+    if (res) {
+      window.__lastMove = { from: res.from, to: res.to };
+      quoteCapture(res);
+      selectedSq = null;
+      legalMoves = [];
+      refreshBoard3D(humanColor);
+      if (!view3d) renderBoard2D(humanColor);
+      checkGameEnd();
+    }
+  };
+
+  if (chess.turn !== humanColor) {
+    document.getElementById('game-status').textContent = 'AI thinking…';
+    aiEngine.think(chess.toFen(), diff, style);
+  } else {
+    document.getElementById('game-status').textContent = 'Your move';
+  }
+}
+
+function refreshBoard3D(humanColor) {
+  if (!board3d || !chess) return;
+
+  let checkKing = null;
+  if (chess.isInCheck()) {
+    checkKing = chess.findKing(chess.turn);
+  }
+
+  board3d.setPosition(chess.getBoard(), {
+    selected: selectedSq,
+    legal: legalMoves,
+    lastMove: window.__lastMove,
+    checkKing
+  });
+}
+
+function onBoardClick3D(r, c, humanColor) {
+  if (!chess || chess.turn !== humanColor) return;
+
+  const piece = chess.board[r][c];
+
+  if (selectedSq) {
+    const move = legalMoves.find(m => m.to.r === r && m.to.c === c);
+    if (move) {
+      const res = chess.move(
+        { r: selectedSq.r, c: selectedSq.c },
+        { r, c }
+      );
+      selectedSq = null;
+      legalMoves = [];
+      if (res) {
+        window.__lastMove = { from: res.from, to: res.to };
+        quoteCapture(res);
+      }
+      refreshBoard3D(humanColor);
+      if (!view3d) renderBoard2D(humanColor);
+      if (checkGameEnd()) return;
+
+      const ctx = window.__aiCtx;
+      document.getElementById('game-status').textContent = 'AI thinking…';
+      aiEngine?.think(chess.toFen(), ctx?.diff, ctx?.style);
+      return;
+    }
+  }
+
+  if (piece && piece[0] === humanColor) {
+    selectedSq = { r, c };
+    legalMoves = chess.getLegalMoves(r, c);
+  } else {
+    selectedSq = null;
+    legalMoves = [];
+  }
+  refreshBoard3D(humanColor);
+  if (!view3d) renderBoard2D(humanColor);
+}
+
+function quoteCapture(res) {
+  if (!res?.capture) return;
+  const t = res.capture[1];
+  if (t === 'Q') ui.showQuote('queen');
+  else if (t === 'R') ui.showQuote('rook');
+  else if (t === 'N') ui.showQuote('knight');
+  else if (t === 'B') ui.showQuote('bishop');
+  else if (t === 'P') ui.showQuote('pawn');
+}
   // For now render 2D grid; 3D integration in next file
   renderBoard2D(humanColor);
 
