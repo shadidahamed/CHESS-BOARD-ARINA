@@ -1,4 +1,4 @@
-/**
+import { Board3D } from './board-3d.js';/**
  * app.js — CHESS ARENA
  * Router · Auth hooks · Game flows · Invite · AI · 4P entry
  */
