@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>CHESS ARENA — শাহিদ</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --gold: #c9a86c;
+      --gold-dim: #8a7349;
+      --text: #e8e4dc;
+      --muted: #8a857c;
+      --light-sq: #d4c4a8;
+      --dark-sq: #5c4a32;
+      --highlight: rgba(201, 168, 108, 0.35);
+      --last: rgba(201, 168, 108, 0.22);
+      --check: rgba(180, 60, 60, 0.45);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+    }
+    header {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px 16px;
+    }
+    .logo {
+      font-size: 1.15rem;
+      letter-spacing: 0.18em;
+      color: var(--gold);
+      font-weight: 500;
+    }
+    .stats {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: right;
+    }
+    .stats strong { color: var(--gold); }
+    .quote-box {
+      width: 100%;
+      max-width: 720px;
+      min-height: 52px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--gold-dim);
+      font-style: italic;
+      transition: opacity 0.4s;
+    }
+    .board-wrap {
+      position: relative;
+      width: min(92vw, 520px);
+      aspect-ratio: 1;
+      border: 2px solid var(--gold-dim);
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      width: 100%;
+      height: 100%;
+    }
+    .sq {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.6rem, 7vw, 2.8rem);
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .sq.light { background: var(--light-sq); }
+    .sq.dark { background: var(--dark-sq); }
+    .sq.selected { outline: 3px solid var(--gold); outline-offset: -3px; }
+    .sq.legal::after {
+      content: "";
+      width: 28%;
+      height: 28%;
+      border-radius: 50%;
+      background: var(--highlight);
+      position: absolute;
+    }
+    .sq.capture::after {
+      content: "";
+      width: 85%;
+      height: 85%;
+      border-radius: 50%;
+      border: 3px solid var(--highlight);
+      position: absolute;
+      background: transparent;
+    }
+    .sq.last { background: var(--last) !important; }
+    .sq.check { background: var(--check) !important; }
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: center;
+    }
+    button {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    button:hover { border-color: var(--gold); color: var(--gold); }
+    button.primary {
+      background: linear-gradient(135deg, #3a2f1a, #2a2418);
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+    .status {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .status.turn { color: var(--gold); }
+    footer {
+      margin-top: auto;
+      padding: 24px 0 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">CHESS ARENA</div>
+    <div class="stats">
+      Rating: <strong id="rating">1200</strong><br>
+      Points: <strong id="points">0</strong>
+    </div>
+  </header>
+
+  <div class="quote-box" id="quote">
+    “প্রতিটি পদক্ষেপ একটা গল্প বলে। রাজার জন্য সোলজার যে জীবন দেয় — সেটা কেবল চাল নয়।”
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="status turn" id="status">আপনার চাল · White</div>
+
+  <div class="controls">
+    <button class="primary" onclick="newGame()">নতুন খেলা</button>
+    <button onclick="undoMove()">Undo</button>
+    <button onclick="resign()">Resign</button>
+    <button onclick="flipBoard()">Flip</button>
+  </div>
+
+  <footer>
+    Architecture · Quiet persistence · Shadid Ahamed style<br>
+    AI Opponent · Invitation & 4-Player coming next
+  </footer>
+
+  <script>
+    // ===================== PIECE SYMBOLS =====================
+    const PIECES = {
+      wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
+      bK: "♚", bQ: "♛", bR: "♜", bB: "♝", bN: "♞", bP: "♟"
+    };
+
+    // ===================== QUOTES (Bangla + English) =====================
+    const QUOTES = {
+      queen: [
+        "রানী নিজের জীবন দিয়েছে রাজার জন্য। The most precious piece falls so the king may live.",
+        "Queen sacrificed. Some weights are heavier than any gym can measure.",
+        "যে হাস্যেটা তোমার জন্য মেন্ট করা ছিল — সেটা এখন আর তোমার নয়।"
+      ],
+      rook: [
+        "দুর্গ ভেঙে গেল। The fortress falls, yet the story continues.",
+        "রুক চলে গেল। কখনো কখনো দেয়ালই সবচেয়ে বড় ত্যাগ।"
+      ],
+      knight: [
+        "অশ্বারোহী পড়ে গেল। The knight’s leap ends in silence.",
+        "নাইট স্যাক্রিফাইস। Unexpected paths sometimes lead to the end."
+      ],
+      bishop: [
+        "বিশপের কর্ণার শেষ। The diagonal is broken.",
+        "ধর্মগুরু চলে গেলেন। Faith and calculation both have their price."
+      ],
+      pawn: [
+        "একটা সাধারণ সোলজার। রাজার জন্য জীবন দিল।",
+        "Pawn falls. The smallest soldier carries the heaviest meaning.",
+        "যে পদক্ষেপ ছোট মনে হয়, সেটাই অনেক সময় সবচেয়ে ব্যয়বহুল।"
+      ],
+      check: [
+        "চেক। The king feels the weight.",
+        "রাজা বিপদে। প্রতিটি চেক একটা সতর্কবাণী।"
+      ],
+      mate: [
+        "চেকমেট। The story ends here — for now.",
+        "খেলা শেষ। কিছু যুদ্ধ জেতা যায়, কিছু শুধু শেখা যায়।"
+      ],
+      start: [
+        "প্রতিটি পদক্ষেপ একটা গল্প বলে।",
+        "The board is quiet. The first move is always the heaviest."
+      ]
+    };
+
+    function randomQuote(type) {
+      const arr = QUOTES[type] || QUOTES.start;
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    // ===================== BOARD STATE =====================
+    let board = [];
+    let turn = "w";
+    let selected = null;
+    let legalMoves = [];
+    let lastMove = null;
+    let history = [];
+    let flipped = false;
+    let gameOver = false;
+    let rating = 1200;
+    let points = 0;
+
+    function initBoard() {
+      board = [
+        ["bR","bN","bB","bQ","bK","bB","bN","bR"],
+        ["bP","bP","bP","bP","bP","bP","bP","bP"],
+        [null,null,null,null,null,null,null,null],
+        [null,null,null,null,null,null,null,null],
+        [null,null,null,null,null,null,null,null],
+        [null,null,null,null,null,null,null,null],
+        ["wP","wP","wP","wP","wP","wP","wP","wP"],
+        ["wR","wN","wB","wQ","wK","wB","wN","wR"]
+      ];
+      turn = "w";
+      selected = null;
+      legalMoves = [];
+      lastMove = null;
+      history = [];
+      gameOver = false;
+      document.getElementById("quote").textContent = randomQuote("start");
+      updateStatus();
+      render();
+    }
+
+    // ===================== BASIC MOVE GENERATION =====================
+    function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+
+    function isEnemy(piece, color) {
+      if (!piece) return false;
+      return color === "w" ? piece[0] === "b" : piece[0] === "w";
+    }
+
+    function isOwn(piece, color) {
+      if (!piece) return false;
+      return piece[0] === color;
+    }
+
+    function getPseudoMoves(r, c) {
+      const piece = board[r][c];
+      if (!piece) return [];
+      const color = piece[0];
+      const type = piece[1];
+      const moves = [];
+
+      const add = (nr, nc) => {
+        if (!inBounds(nr, nc)) return;
+        const target = board[nr][nc];
+        if (!target) moves.push({ r: nr, c: nc, capture: false });
+        else if (isEnemy(target, color)) moves.push({ r: nr, c: nc, capture: true });
+      };
+
+      if (type === "P") {
+        const dir = color === "w" ? -1 : 1;
+        const start = color === "w" ? 6 : 1;
+        if (inBounds(r + dir, c) && !board[r + dir][c]) {
+          moves.push({ r: r + dir, c, capture: false });
+          if (r === start && !board[r + 2 * dir][c]) {
+            moves.push({ r: r + 2 * dir, c, capture: false });
+          }
+        }
+        for (const dc of [-1, 1]) {
+          const nr = r + dir, nc = c + dc;
+          if (inBounds(nr, nc) && isEnemy(board[nr][nc], color)) {
+            moves.push({ r: nr, c: nc, capture: true });
+          }
+        }
+      }
+
+      if (type === "N") {
+        const jumps = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+        jumps.forEach(([dr, dc]) => add(r + dr, c + dc));
+      }
+
+      if (type === "B" || type === "Q") {
+        for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+          for (let i = 1; i < 8; i++) {
+            const nr = r + dr * i, nc = c + dc * i;
+            if (!inBounds(nr, nc)) break;
+            if (!board[nr][nc]) moves.push({ r: nr, c: nc, capture: false });
+            else {
+              if (isEnemy(board[nr][nc], color)) moves.push({ r: nr, c: nc, capture: true });
+              break;
+            }
+          }
+        }
+      }
+
+      if (type === "R" || type === "Q") {
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          for (let i = 1; i < 8; i++) {
+            const nr = r + dr * i, nc = c + dc * i;
+            if (!inBounds(nr, nc)) break;
+            if (!board[nr][nc]) moves.push({ r: nr, c: nc, capture: false });
+            else {
+              if (isEnemy(board[nr][nc], color)) moves.push({ r: nr, c: nc, capture: true });
+              break;
+            }
+          }
+        }
+      }
+
+      if (type === "K") {
+        for (let dr = -1; dr <= 1; dr++)
+          for (let dc = -1; dc <= 1; dc++)
+            if (dr || dc) add(r + dr, c + dc);
+      }
+
+      return moves;
+    }
+
+    function findKing(color) {
+      for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++)
+          if (board[r][c] === color + "K") return { r, c };
+      return null;
+    }
+
+    function isSquareAttacked(r, c, byColor) {
+      for (let i = 0; i < 8; i++)
+        for (let j = 0; j < 8; j++) {
+          const p = board[i][j];
+          if (!p || p[0] !== byColor) continue;
+          const moves = getPseudoMoves(i, j);
+          if (moves.some(m => m.r === r && m.c === c)) return true;
+        }
+      return false;
+    }
+
+    function isInCheck(color) {
+      const k = findKing(color);
+      if (!k) return true;
+      return isSquareAttacked(k.r, k.c, color === "w" ? "b" : "w");
+    }
+
+    function getLegalMoves(r, c) {
+      const piece = board[r][c];
+      if (!piece || piece[0] !== turn) return [];
+      const pseudo = getPseudoMoves(r, c);
+      const legal = [];
+      for (const m of pseudo) {
+        const captured = board[m.r][m.c];
+        board[m.r][m.c] = piece;
+        board[r][c] = null;
+        if (!isInCheck(turn)) legal.push(m);
+        board[r][c] = piece;
+        board[m.r][m.c] = captured;
+      }
+      return legal;
+    }
+
+    // ===================== MAKE MOVE =====================
+    function makeMove(fromR, fromC, toR, toC) {
+      const piece = board[fromR][fromC];
+      const captured = board[toR][toC];
+      history.push({ board: board.map(row => [...row]), turn, lastMove });
+
+      board[toR][toC] = piece;
+      board[fromR][fromC] = null;
+
+      // Promotion
+      if (piece[1] === "P" && (toR === 0 || toR === 7)) {
+        board[toR][toC] = piece[0] + "Q";
+      }
+
+      lastMove = { from: { r: fromR, c: fromC }, to: { r: toR, c: toC } };
+
+      if (captured) {
+        const type = captured[1];
+        if (type === "Q") showQuote("queen");
+        else if (type === "R") showQuote("rook");
+        else if (type === "N") showQuote("knight");
+        else if (type === "B") showQuote("bishop");
+        else if (type === "P") showQuote("pawn");
+      }
+
+      turn = turn === "w" ? "b" : "w";
+
+      if (isInCheck(turn)) {
+        const hasMove = hasAnyLegalMove(turn);
+        if (!hasMove) {
+          gameOver = true;
+          showQuote("mate");
+          document.getElementById("status").textContent =
+            turn === "b" ? "চেকমেট! আপনি জিতেছেন" : "চেকমেট! AI জিতেছে";
+          if (turn === "b") { points += 10; rating += 8; }
+          else { points = Math.max(0, points - 3); rating = Math.max(800, rating - 6); }
+          updateStats();
+        } else {
+          showQuote("check");
+        }
+      } else if (!hasAnyLegalMove(turn)) {
+        gameOver = true;
+        document.getElementById("status").textContent = "স্টিলমেট · ড্র";
+      }
+
+      selected = null;
+      legalMoves = [];
+      updateStatus();
+      render();
+
+      if (!gameOver && turn === "b") {
+        setTimeout(aiMove, 450);
+      }
+    }
+
+    function hasAnyLegalMove(color) {
+      for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++)
+          if (board[r][c] && board[r][c][0] === color)
+            if (getLegalMoves(r, c).length) return true;
+      return false;
+    }
+
+    // ===================== SIMPLE AI =====================
+    function aiMove() {
+      if (gameOver) return;
+      const all = [];
+      for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++)
+          if (board[r][c] && board[r][c][0] === "b") {
+            const moves = getLegalMoves(r, c);
+            moves.forEach(m => all.push({ fromR: r, fromC: c, ...m }));
+          }
+      if (!all.length) return;
+
+      // Prefer captures, then random
+      all.sort((a, b) => (b.capture ? 1 : 0) - (a.capture ? 1 : 0));
+      const choice = all[Math.floor(Math.random() * Math.min(4, all.length))];
+      makeMove(choice.fromR, choice.fromC, choice.r, choice.c);
+    }
+
+    // ===================== UI =====================
+    function showQuote(type) {
+      const el = document.getElementById("quote");
+      el.style.opacity = 0;
+      setTimeout(() => {
+        el.textContent = randomQuote(type);
+        el.style.opacity = 1;
+      }, 200);
+    }
+
+    function updateStatus() {
+      if (gameOver) return;
+      document.getElementById("status").textContent =
+        turn === "w" ? "আপনার চাল · White" : "AI ভাবছে...";
+    }
+
+    function updateStats() {
+      document.getElementById("rating").textContent = rating;
+      document.getElementById("points").textContent = points;
+    }
+
+    function render() {
+      const el = document.getElementById("board");
+      el.innerHTML = "";
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const displayR = flipped ? 7 - r : r;
+          const displayC = flipped ? 7 - c : c;
+          const sq = document.createElement("div");
+          sq.className = "sq " + ((displayR + displayC) % 2 === 0 ? "light" : "dark");
+          const piece = board[displayR][displayC];
+          if (piece) sq.textContent = PIECES[piece];
+
+          if (selected && selected.r === displayR && selected.c === displayC)
+            sq.classList.add("selected");
+
+          if (lastMove) {
+            if ((lastMove.from.r === displayR && lastMove.from.c === displayC) ||
+                (lastMove.to.r === displayR && lastMove.to.c === displayC))
+              sq.classList.add("last");
+          }
+
+          const isLegal = legalMoves.some(m => m.r === displayR && m.c === displayC);
+          if (isLegal) {
+            sq.classList.add(board[displayR][displayC] ? "capture" : "legal");
+          }
+
+          if (piece && piece[1] === "K" && isInCheck(piece[0])) {
+            sq.classList.add("check");
+          }
+
+          sq.onclick = () => onSquareClick(displayR, displayC);
+          el.appendChild(sq);
+        }
+      }
+    }
+
+    function onSquareClick(r, c) {
+      if (gameOver || turn !== "w") return;
+      const piece = board[r][c];
+
+      if (selected) {
+        const move = legalMoves.find(m => m.r === r && m.c === c);
+        if (move) {
+          makeMove(selected.r, selected.c, r, c);
+          return;
+        }
+      }
+
+      if (piece && piece[0] === "w") {
+        selected = { r, c };
+        legalMoves = getLegalMoves(r, c);
+        render();
+      } else {
+        selected = null;
+        legalMoves = [];
+        render();
+      }
+    }
+
+    function newGame() {
+      initBoard();
+    }
+
+    function undoMove() {
+      if (history.length < 2) return;
+      // undo player + AI
+      history.pop();
+      const prev = history.pop();
+      board = prev.board;
+      turn = prev.turn;
+      lastMove = prev.lastMove;
+      gameOver = false;
+      selected = null;
+      legalMoves = [];
+      updateStatus();
+      render();
+    }
+
+    function resign() {
+      if (gameOver) return;
+      gameOver = true;
+      document.getElementById("status").textContent = "আপনি রিজাইন করেছেন";
+      points = Math.max(0, points - 3);
+      rating = Math.max(800, rating - 6);
+      updateStats();
+      showQuote("mate");
+    }
+
+    function flipBoard() {
+      flipped = !flipped;
+      render();
+    }
+
+    // Start
+    initBoard();
+  </script>
+</body>
+</html>
